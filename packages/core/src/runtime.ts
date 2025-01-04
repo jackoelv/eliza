@@ -260,7 +260,30 @@ export class AgentRuntime implements IAgentRuntime {
 
         elizaLogger.success("Agent ID", this.agentId);
 
-        this.fetch = (opts.fetch as typeof fetch) ?? this.fetch;
+        // this.fetch = (opts.fetch as typeof fetch) ?? this.fetch;
+        this.fetch = ((opts.fetch as typeof fetch) ?? this.fetch).bind(
+            globalThis
+        );
+
+        if (typeof this.fetch === "function") {
+            const originalFetch = this.fetch;
+            const proxyUrl = "http://127.0.0.1:21072";
+
+            this.fetch = async (
+                input: RequestInfo,
+                init?: RequestInit
+            ): Promise<Response> => {
+                if (typeof input === "string") {
+                    input = new URL(input, proxyUrl).toString();
+                } else if (input instanceof Request) {
+                    input = new Request(
+                        new URL(input.url, proxyUrl).toString(),
+                        input
+                    );
+                }
+                return originalFetch(input, init);
+            };
+        }
 
         this.cacheManager = opts.cacheManager;
 
@@ -410,22 +433,27 @@ export class AgentRuntime implements IAgentRuntime {
     }
 
     async stop() {
-      elizaLogger.debug('runtime::stop - character', this.character)
-      // stop services, they don't have a stop function
+        elizaLogger.debug("runtime::stop - character", this.character);
+        // stop services, they don't have a stop function
         // just initialize
 
-      // plugins
+        // plugins
         // have actions, providers, evaluators (no start/stop)
         // services (just initialized), clients
 
-      // client have a start
-      for(const cStr in this.clients) {
-        const c = this.clients[cStr]
-        elizaLogger.log('runtime::stop - requesting', cStr, 'client stop for', this.character.name)
-        c.stop()
-      }
-      // we don't need to unregister with directClient
-      // don't need to worry about knowledge
+        // client have a start
+        for (const cStr in this.clients) {
+            const c = this.clients[cStr];
+            elizaLogger.log(
+                "runtime::stop - requesting",
+                cStr,
+                "client stop for",
+                this.character.name
+            );
+            c.stop();
+        }
+        // we don't need to unregister with directClient
+        // don't need to worry about knowledge
     }
 
     /**
