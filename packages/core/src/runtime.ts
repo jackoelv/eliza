@@ -46,6 +46,12 @@ import {
     type Memory,
 } from "./types.ts";
 import { stringToUuid } from "./uuid.ts";
+import { HttpsProxyAgent } from "https-proxy-agent";
+
+// 扩展 RequestInit 类型
+interface ExtendedRequestInit extends RequestInit {
+    agent?: any; // 添加 agent 属性
+}
 
 /**
  * Represents the runtime environment for an agent, handling message processing,
@@ -260,27 +266,27 @@ export class AgentRuntime implements IAgentRuntime {
 
         elizaLogger.success("Agent ID", this.agentId);
 
-        // this.fetch = (opts.fetch as typeof fetch) ?? this.fetch;
         this.fetch = ((opts.fetch as typeof fetch) ?? this.fetch).bind(
             globalThis
         );
 
         if (typeof this.fetch === "function") {
             const originalFetch = this.fetch;
-            const proxyUrl = "http://127.0.0.1:21072";
+            const proxyUrl = "http://127.0.0.1:7890";
+            elizaLogger.info("Jack INFO ProxyUrl:", proxyUrl);
+
+            const proxyAgent = new HttpsProxyAgent(proxyUrl);
 
             this.fetch = async (
                 input: RequestInfo,
-                init?: RequestInit
+                init?: ExtendedRequestInit // 使用扩展类型
             ): Promise<Response> => {
-                if (typeof input === "string") {
-                    input = new URL(input, proxyUrl).toString();
-                } else if (input instanceof Request) {
-                    input = new Request(
-                        new URL(input.url, proxyUrl).toString(),
-                        input
-                    );
+                if (!init) {
+                    init = {};
                 }
+                init.agent = proxyAgent; // 设置代理
+
+                elizaLogger.info("Jack INFO input:", input);
                 return originalFetch(input, init);
             };
         }
